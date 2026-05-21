@@ -1,0 +1,83 @@
+services:
+  kafka:
+    image: confluentinc/cp-kafka:8.2.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+
+    environment:
+      # KRaft
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # Listeners
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+
+      # Controller quorum
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # Single node dev setup
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # Logs
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+
+      # Auto topic creation (dev)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # Cluster ID obligatoire en KRaft
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:8.2.0
+    container_name: schema-registry
+    hostname: schema-registry
+    depends_on:
+      - kafka
+
+    ports:
+      - "8081:8081"
+
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+
+      # KRaft bootstrap
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+
+      # Compatibilité Avro
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: backward
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+      - schema-registry
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+      # Schema Registry
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+
+      # Avro support
+      KAFKA_CLUSTERS_0_READONLY: "false"
+
+volumes:
+  kafka_data:
